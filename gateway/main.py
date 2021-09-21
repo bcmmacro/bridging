@@ -8,6 +8,7 @@ Restriction:
 """
 import logging
 from fastapi import FastAPI, Request, WebSocket
+from starlette.middleware.cors import CORSMiddleware
 
 from forwarder import Forwarder
 
@@ -17,6 +18,12 @@ _logger = logging.getLogger(__name__)
 _forwarder = Forwarder()
 
 app = FastAPI()
+
+app.add_middleware(CORSMiddleware,
+                   allow_origins=["*"],
+                   allow_credentials=True,
+                   allow_methods=["*"],
+                   allow_headers=["*"])
 
 
 @app.get("/{full_path:path}")
@@ -28,12 +35,6 @@ async def serve_get(request: Request, full_path):
 @app.post("/{full_path:path}")
 async def serve_post(request: Request, full_path):
     _logger.info(f"recv post {request.client} {request.url}")
-    return await _forwarder.forward_http(request)
-
-
-@app.options("/{full_path:path}")
-async def serve_options(request: Request, full_path):
-    _logger.info(f"recv options {request.client} {request.url}")
     return await _forwarder.forward_http(request)
 
 

@@ -36,7 +36,10 @@ class App(object):
                     method, url = l.split()
                     self._whitelist.append(urllib.parse.urlparse(url))
         while True:
-            asyncio.get_event_loop().run_until_complete(self._run())
+            try:
+                asyncio.get_event_loop().run_until_complete(self._run())
+            except Exception:
+                _logger.exception('')
             time.sleep(30)
 
     async def _run(self):
