@@ -1,6 +1,6 @@
-import logging
-
 import argparse
+import json
+import logging
 
 from app import App
 
@@ -13,4 +13,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     app = App()
-    app.run(args.config)
+    with open(args.config, 'r') as f:
+        conf = json.load(f)
+    app.run(conf)

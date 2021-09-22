@@ -5,9 +5,9 @@ import requests
 import time
 import urllib.parse
 import websockets
-from typing import Dict
+from typing import Dict, NamedTuple
 
-_logger = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 def url_transformed(m):
@@ -23,32 +23,74 @@ def deserialize_request(m: Dict) -> requests.Request:
                             json=m['body'])
 
 
+def _eq(s1: str, s2: str):
+    return s1.strip().lower() == s2.strip().lower()
+
+
+class _WhiteListEntry(NamedTuple):
+    method: str
+    scheme: str
+    netloc: str
+    path: str
+
+    def __hash__(self):
+        return hash(str(self))
+
+    def __eq__(self, other):
+        return _eq(self.method, other.method) and _eq(
+            self.scheme, other.scheme) and _eq(
+                self.netloc, other.netloc) and _eq(self.path, other.path)
+
+    def __repr__(self):
+        return f"{self.method} {self.scheme}://{self.netloc}/{self.path}"
+
+
+class _WhiteList(object):
+    def __init__(self, config):
+        self._entries = set()
+
+        for entry in config:
+            for netloc in entry["netloc"]:
+                for method in entry["method"]:
+                    for scheme in entry["scheme"]:
+                        for path in entry["path"]:
+                            self._entries.add(
+                                _WhiteListEntry(method, scheme, netloc, path))
+
+    def check(self, method, url):
+        parsed = urllib.parse.urlparse(url)
+        if _WhiteListEntry(method, parsed.scheme, parsed.netloc,
+                           parsed.path) not in self._entries:
+            raise Exception("forbidden")
+
+
 class App(object):
     def __init__(self):
         self._ws = None
         self._wss = {}
-        self._whitelist = []
+        self._whitelist = None
 
-    def run(self, config=None):
-        if config is not None:
-            with open(config, 'r') as f:
-                for l in f:
-                    method, url = l.split()
-                    self._whitelist.append(urllib.parse.urlparse(url))
+    def run(self, config):
+        bridge_netloc = config["bridge_netloc"]
+        bridge_token = config["bridge_token"]
+        self._whitelist = _WhiteList(config["whitelist"])
         while True:
             try:
-                asyncio.get_event_loop().run_until_complete(self._run())
+                asyncio.get_event_loop().run_until_complete(
+                    self._run(bridge_netloc, bridge_token))
             except Exception:
-                _logger.exception('')
+                _LOGGER.exception('')
             time.sleep(30)
 
-    async def _run(self):
-        async with websockets.connect('ws://0.0.0.0:8000/bridge') as ws:
-            _logger.info(f'connected to gateway')
+    async def _run(self, bridge_netloc, bridge_token):
+        async with websockets.connect(
+                f"ws://{bridge_netloc}/bridge",
+                extra_headers={"bridging-token": bridge_token}) as ws:
+            _LOGGER.info(f'connected to gateway')
             self._ws = ws
             while True:
                 msg = await ws.recv()
-                _logger.info(f"recv msg[{msg}]")
+                _LOGGER.info(f"recv msg[{msg}]")
                 msg = json.loads(msg)
                 corr_id = msg["corr_id"]
                 method = msg["method"]
@@ -87,14 +129,19 @@ class App(object):
                         await self._wss[ws_id].send(json.dumps(msg))
 
     async def _handle_http(self, corr_id, payload):
-        async def _send(status_code, headers, text):
+        async def _send(status_code, headers, content):
+            # TODO(x): better to send raw data instead of decoded in case it's huge.
+            if "Content-Encoding" in headers:
+                headers.pop("Content-Encoding")
+            if "Content-Length" in headers:
+                headers.pop("Content-Length")
             await self._send({
                 "corr_id": corr_id,
                 "method": "http_result",
                 "payload": {
                     "status_code": status_code,
                     "headers": headers,
-                    "text": text
+                    "content": content
                 }
             })
 
@@ -112,11 +159,12 @@ class App(object):
 
         try:
             resp = requests.Session().send(req.prepare())
-            _logger.info(f"recv resp[{resp}] {resp.text}")
+            _LOGGER.info(f"recv resp[{resp}]")
 
-            await _send(resp.status_code, dict(resp.headers), resp.text)
+            await _send(resp.status_code, dict(resp.headers),
+                        resp.content.decode())
         except Exception as e:
-            _logger.exception('')
+            _LOGGER.exception('')
             await _send(500, {}, str(e))
 
     async def _open_websocket(self, corr_id, payload):
@@ -136,16 +184,16 @@ class App(object):
 
         try:
             url = url_transformed(payload)
-            self._firewall(url)
+            self._firewall(payload["method"], url)
             async with websockets.connect(url) as ws:
-                _logger.info(f'connected url[{url}]')
+                _LOGGER.info(f'connected url[{url}]')
                 self._wss[ws_id] = ws
                 await _send_result()
 
                 try:
                     while True:
                         msg = await ws.recv()
-                        _logger.info(f"recv {msg}")
+                        _LOGGER.info(f"recv {msg}")
                         msg = json.loads(msg)
                         await self._send({
                             "corr_id": "0",
@@ -156,7 +204,7 @@ class App(object):
                             }
                         })
                 except Exception:
-                    _logger.exception('')
+                    _LOGGER.exception('')
                     await self._send({
                         "corr_id": "0",
                         "method": "close_websocket",
@@ -166,19 +214,12 @@ class App(object):
                     })
 
         except Exception as e:
-            _logger.exception('')
+            _LOGGER.exception('')
             await _send_result(str(e))
 
     def _firewall(self, method, url):
-        if len(self._whitelist) == 0:
-            return
-
-        parsed = urllib.parse.urlparse(url)
-        for wl in self._whitelist:
-            if method == wl.method and parsed.scheme == wl.scheme and parsed.netloc == wl.netloc and parsed.path == wl.path:
-                return
-        raise Exception("not allowed")
+        self._whitelist.check(method, url)
 
     async def _send(self, msg):
-        _logger.info(f"send {msg}")
+        _LOGGER.info(f"send {msg}")
         await self._ws.send(json.dumps(msg))

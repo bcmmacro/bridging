@@ -1,0 +1,14 @@
+{
+  "bridge_netloc": "api.abc.com",
+  "bridge_token": "12345",
+  "whitelist": [
+    {
+      "netloc": ["198.0.0.1:8001"],
+      "method": ["GET"],
+      "scheme": ["http"],
+      "path": [
+        "/api"
+      ]
+    }
+  ]
+}
