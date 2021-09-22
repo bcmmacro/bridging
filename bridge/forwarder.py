@@ -78,21 +78,23 @@ class Forwarder(object):
         try:
             while True:
                 msg = await ws.receive_json()
-                _LOGGER.info(f"recv {msg}")
                 corr_id = msg['corr_id']
                 payload = msg['payload']
                 if corr_id == '0':
                     method = msg['method']
                     if method == 'close_websocket':
+                        _LOGGER.info(f"recv {msg}")
                         ws_id = payload['ws_id']
                         if ws_id in self._wss:
                             await self._wss.pop(ws_id).close()
                     elif method == 'websocket_msg':
+                        _LOGGER.debug(f"recv {msg}")
                         ws_id = payload["ws_id"]
                         msg = payload["msg"]
                         if ws_id in self._wss:
                             await self._wss[ws_id].send_json(msg)
                 elif corr_id in self._reqs:
+                    _LOGGER.info(f"recv {msg}")
                     self._reqs.pop(corr_id).set_result(payload)
 
         except Exception:

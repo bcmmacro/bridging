@@ -205,16 +205,17 @@ class App(object):
                 try:
                     while True:
                         msg = await ws.recv()
-                        _LOGGER.info(f"recv {msg}")
+                        _LOGGER.debug(f"recv {msg}")
                         msg = json.loads(msg)
-                        await self._send({
-                            "corr_id": "0",
-                            "method": "websocket_msg",
-                            "payload": {
-                                "ws_id": ws_id,
-                                "msg": msg
-                            }
-                        })
+                        await self._send(
+                            {
+                                "corr_id": "0",
+                                "method": "websocket_msg",
+                                "payload": {
+                                    "ws_id": ws_id,
+                                    "msg": msg
+                                }
+                            }, logging.DEBUG)
                 except Exception:
                     _LOGGER.exception('')
                     await self._send({
@@ -232,6 +233,6 @@ class App(object):
     def _firewall(self, method, url):
         self._whitelist.check(method, url)
 
-    async def _send(self, msg):
-        _LOGGER.info(f"send {msg}")
+    async def _send(self, msg, log_level=logging.INFO):
+        _LOGGER.log(level=log_level, msg=f"send {msg}")
         await self._ws.send(json.dumps(msg))
