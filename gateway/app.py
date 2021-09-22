@@ -10,15 +10,27 @@ from typing import Dict, NamedTuple
 _LOGGER = logging.getLogger(__name__)
 
 
-def url_transformed(m):
+def _url_transformed(m):
     result = urllib.parse.urlparse(m['url'])
     return urllib.parse.urlunparse(
         result._replace(netloc=m['headers']['bridging-base-url']))
 
 
+def _ws_url_transformed(m):
+    result = urllib.parse.urlparse(m['url'])
+    queries = result.query.split(';')
+    bridging_base_url = None
+    for q in queries:
+        k, v = q.split('=')
+        if k == 'bridging-base-url':
+            bridging_base_url = v
+            break
+    return urllib.parse.urlunparse(result._replace(netloc=bridging_base_url))
+
+
 def deserialize_request(m: Dict) -> requests.Request:
     return requests.Request(method=m['method'],
-                            url=url_transformed(m),
+                            url=_url_transformed(m),
                             headers=m['headers'],
                             json=m['body'])
 
@@ -183,8 +195,8 @@ class App(object):
             await self._send(msg)
 
         try:
-            url = url_transformed(payload)
-            self._firewall(payload["method"], url)
+            url = _ws_url_transformed(payload)
+            self._firewall("websocket", url)
             async with websockets.connect(url) as ws:
                 _LOGGER.info(f'connected url[{url}]')
                 self._wss[ws_id] = ws
