@@ -1,18 +1,62 @@
-import argparse
-import json
+"""
+uvicorn --host 0.0.0.0 --env-file .env main:app
+
+Restriction:
+1. Websocket forwards json only.
+"""
 import logging
+import os
 
-from app import App
+from fastapi import FastAPI, Request, WebSocket
+from starlette.middleware.cors import CORSMiddleware
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+from forwarder import Forwarder
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', '-c')
+logging.basicConfig(level=logging.INFO)
 
-    args = parser.parse_args()
+_LOGGER = logging.getLogger(__name__)
+_forwarder = Forwarder()
 
-    app = App()
-    with open(args.config, 'r') as f:
-        conf = json.load(f)
-    app.run(conf)
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("GATEWAY_CORS_ALLOW_ORIGINS").split(','),
+    allow_credentials=True,
+    allow_methods=os.getenv("GATEWAY_CORS_ALLOW_METHODS").split(','),
+    allow_headers=os.getenv("GATEWAY_CORS_ALLOW_HEADERS").split(','))
+
+
+@app.get("/{full_path:path}")
+async def serve_get(request: Request, full_path):
+    _LOGGER.info(f"recv get {request.client} {request.url}")
+    return await _forwarder.forward_http(request)
+
+
+@app.post("/{full_path:path}")
+async def serve_post(request: Request, full_path):
+    _LOGGER.info(f"recv post {request.client} {request.url}")
+    return await _forwarder.forward_http(request)
+
+
+@app.websocket("/bridge")
+async def serve_bridge(ws: WebSocket):
+    _LOGGER.info(f"recv bridge")
+    await _forwarder.serve(ws)
+
+
+@app.websocket("/{full_path:path}")
+async def serve_websocket(ws: WebSocket):
+    _LOGGER.info(f"recv websocket {ws.client} {ws.url}")
+    await ws.accept()
+
+    ws_id = await _forwarder.forward_open_websocket(ws)
+    _LOGGER.info(f"opened remote websocket {ws.client} {ws_id}")
+    try:
+        while True:
+            msg = await ws.receive_json()
+            _LOGGER.info(f"recv {ws.client} {msg}")
+            await _forwarder.forward_websocket_msg(ws_id, msg)
+    except Exception:
+        _LOGGER.exception(f'{ws.client}')
+        await _forwarder.forward_close_websocket(ws_id)
