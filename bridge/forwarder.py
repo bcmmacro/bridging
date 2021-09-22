@@ -1,4 +1,6 @@
 import asyncio
+import gzip
+import json
 import logging
 import os
 import uuid
@@ -77,7 +79,8 @@ class Forwarder(object):
 
         try:
             while True:
-                msg = await ws.receive_json()
+                msg = await ws.receive_bytes()
+                msg = json.loads(gzip.decompress(msg))
                 corr_id = msg['corr_id']
                 payload = msg['payload']
                 if corr_id == '0':

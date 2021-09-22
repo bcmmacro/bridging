@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 import json
 import logging
 import requests
@@ -235,4 +236,4 @@ class App(object):
 
     async def _send(self, msg, log_level=logging.INFO):
         _LOGGER.log(level=log_level, msg=f"send {msg}")
-        await self._ws.send(json.dumps(msg))
+        await self._ws.send(gzip.compress(bytes(json.dumps(msg), 'utf-8')))
