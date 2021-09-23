@@ -33,7 +33,7 @@ def deserialize_request(m: Dict) -> requests.Request:
     return requests.Request(method=m['method'],
                             url=_url_transformed(m),
                             headers=m['headers'],
-                            json=m['body'])
+                            data=m['body'])
 
 
 def _eq(s1: str, s2: str):
@@ -103,26 +103,27 @@ class App(object):
             self._bridge = ws
             while True:
                 msg = await ws.recv()
-                _LOGGER.info(f"recv msg[{msg}]")
-                msg = json.loads(msg)
+                msg = json.loads(gzip.decompress(msg))
+                _LOGGER.info(f"recv bridge msg[{msg}]")
+
                 corr_id = msg["corr_id"]
                 method = msg["method"]
-                payload = msg["payload"]
+                args = msg["args"]
 
                 if method == 'http':
-                    await self._handle_http(corr_id, payload)
+                    await self._handle_http(corr_id, args)
                 elif method == 'open_websocket':
                     asyncio.get_running_loop().create_task(
-                        self._open_websocket(corr_id, payload))
+                        self._open_websocket(corr_id, args))
                 elif method == 'close_websocket':
                     try:
-                        ws_id = payload["ws_id"]
+                        ws_id = args["ws_id"]
                         if ws_id in self._wss:
                             await self._wss.pop(ws_id).close()
                         await self._send({
                             "corr_id": corr_id,
                             "method": "close_websocket_result",
-                            "payload": {
+                            "args": {
                                 "ws_id": ws_id
                             }
                         })
@@ -130,18 +131,18 @@ class App(object):
                         await self._send({
                             "corr_id": corr_id,
                             "method": "close_websocket_result",
-                            "payload": {
+                            "args": {
                                 "ws_id": ws_id,
                                 "exception": str(e)
                             }
                         })
                 elif method == "websocket_msg":
-                    ws_id = payload["ws_id"]
-                    msg = payload["msg"]
+                    ws_id = args["ws_id"]
+                    msg = args["msg"]
                     if ws_id in self._wss:
                         await self._wss[ws_id].send(msg)
 
-    async def _handle_http(self, corr_id, payload):
+    async def _handle_http(self, corr_id, args):
         async def _send(status_code, headers, content):
             # send decoded data is ok, since bridge msg is gzipped.
             if "Content-Encoding" in headers:
@@ -151,7 +152,7 @@ class App(object):
             await self._send({
                 "corr_id": corr_id,
                 "method": "http_result",
-                "payload": {
+                "args": {
                     "status_code": status_code,
                     "headers": headers,
                     "content": content
@@ -159,7 +160,7 @@ class App(object):
             })
 
         try:
-            req = deserialize_request(payload)
+            req = deserialize_request(args)
         except Exception:
             await _send(400, {}, "")
             return
@@ -172,7 +173,7 @@ class App(object):
 
         try:
             resp = requests.Session().send(req.prepare())
-            _LOGGER.info(f"recv resp[{resp}]")
+            _LOGGER.info(f"recv http resp[{resp}]")
 
             await _send(resp.status_code, dict(resp.headers),
                         resp.content.decode())
@@ -180,23 +181,23 @@ class App(object):
             _LOGGER.exception('')
             await _send(500, {}, str(e))
 
-    async def _open_websocket(self, corr_id, payload):
-        ws_id = payload["ws_id"]
+    async def _open_websocket(self, corr_id, args):
+        ws_id = args["ws_id"]
 
         async def _send_result(exception=None):
             msg = {
                 "corr_id": corr_id,
                 "method": "open_websocket_result",
-                "payload": {
+                "args": {
                     "ws_id": ws_id
                 }
             }
             if exception is not None:
-                msg["payload"]["exception"] = exception
+                msg["args"]["exception"] = exception
             await self._send(msg)
 
         try:
-            url = _ws_url_transformed(payload)
+            url = _ws_url_transformed(args)
             self._firewall("websocket", url)
             async with websockets.connect(url) as ws:
                 _LOGGER.info(f'connected url[{url}]')
@@ -206,12 +207,12 @@ class App(object):
                 try:
                     while True:
                         msg = await ws.recv()
-                        _LOGGER.debug(f"recv {msg}")
+                        _LOGGER.debug(f"recv ws_id[{ws_id}] {msg}")
                         await self._send(
                             {
                                 "corr_id": "0",
                                 "method": "websocket_msg",
-                                "payload": {
+                                "args": {
                                     "ws_id": ws_id,
                                     "msg": msg
                                 }
@@ -221,7 +222,7 @@ class App(object):
                     await self._send({
                         "corr_id": "0",
                         "method": "close_websocket",
-                        "payload": {
+                        "args": {
                             "ws_id": ws_id
                         }
                     })
@@ -234,5 +235,5 @@ class App(object):
         self._whitelist.check(method, url)
 
     async def _send(self, msg, log_level=logging.INFO):
-        _LOGGER.log(level=log_level, msg=f"send {msg}")
+        _LOGGER.log(level=log_level, msg=f"send bridge {msg}")
         await self._bridge.send(gzip.compress(bytes(json.dumps(msg), 'utf-8')))

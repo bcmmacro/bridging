@@ -7,7 +7,12 @@ Bridge listens to a special websocket "/bridge" which is supposed to be connecte
 Bridge wraps HTTP and other websocket requests, forwards them over "/bridge" to Gateway.
 Gateway unwraps the requests and routes them to the correct downstream services, routing is done with a special header "bridging-base-url" from frontend.
 
-## Usecases
+## Benefits
+1. No additional deployment or changes to existing business services, no troublesome migration of these services to another DC.
+2. Data flowed in/out to/from private DC is precisely managed.
+3. Minimal requirement/effort on maintaining the cloud DC.
+
+## Use cases
 1. You are going to serve a public website, but critical business services are running on-premise. and You are not allowed to have inbound connections to on-premise infrastructure.
 2. You are hosting a website. You want to use your own PC to save cloud bill.
 

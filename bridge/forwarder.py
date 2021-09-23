@@ -32,8 +32,8 @@ class Forwarder(object):
         if self._bridge is None:
             return Response(status_code=503)
 
-        payload = await serialize_request(req)
-        result = await self._req('http', payload)
+        args = await serialize_request(req)
+        result = await self._req('http', args)
         resp = Response(status_code=result["status_code"],
                         headers=result["headers"],
                         content=str.encode(result["content"]))
@@ -60,10 +60,10 @@ class Forwarder(object):
         if self._bridge is None:
             return Response(status_code=503)
 
-        await self._bridge.send_json({
+        await self._send({
             "corr_id": "0",
             "method": "websocket_msg",
-            "payload": {
+            "args": {
                 "ws_id": ws_id,
                 "msg": msg
             }
@@ -75,7 +75,8 @@ class Forwarder(object):
 
         if ws_id in self._wss:
             await self._req('close_websocket', {'ws_id': ws_id})
-            self._wss.pop(ws_id)
+            if ws_id in self._wss:
+                self._wss.pop(ws_id)
 
     async def serve(self, ws: WebSocket):
         if self._bridge is not None:
@@ -94,23 +95,23 @@ class Forwarder(object):
                 msg = await ws.receive_bytes()
                 msg = json.loads(gzip.decompress(msg))
                 corr_id = msg['corr_id']
-                payload = msg['payload']
+                args = msg['args']
                 if corr_id == '0':
                     method = msg['method']
                     if method == 'close_websocket':
                         _LOGGER.info(f"recv {msg}")
-                        ws_id = payload['ws_id']
+                        ws_id = args['ws_id']
                         if ws_id in self._wss:
                             await self._wss.pop(ws_id).close()
                     elif method == 'websocket_msg':
                         _LOGGER.debug(f"recv {msg}")
-                        ws_id = payload["ws_id"]
-                        p_msg = payload["msg"]
+                        ws_id = args["ws_id"]
+                        p_msg = args["msg"]
                         if ws_id in self._wss:
                             await self._wss[ws_id].send_text(p_msg)
                 elif corr_id in self._reqs:
                     _LOGGER.info(f"recv {msg}")
-                    self._reqs.pop(corr_id).set_result(payload)
+                    self._reqs.pop(corr_id).set_result(args)
 
         except Exception:
             _LOGGER.exception('')
@@ -122,19 +123,23 @@ class Forwarder(object):
             for ws in wss.values():
                 await ws.close()
 
-    async def _req(self, method, payload):
+    async def _req(self, method, args):
         corr_id = self._corr_id()
         fut = asyncio.get_running_loop().create_future()
         self._reqs[corr_id] = fut
-        msg = {'corr_id': corr_id, 'method': method, 'payload': payload}
-        _LOGGER.info(f"send {msg}")
+        msg = {'corr_id': corr_id, 'method': method, 'args': args}
         try:
-            await self._bridge.send_json(msg)
+            await self._send(msg)
         except Exception as e:
             self._reqs.pop(corr_id).set_exception(e)
 
         await fut
         return fut.result()
+
+    async def _send(self, msg):
+        _LOGGER.info(f"send {msg}")
+        await self._bridge.send_bytes(
+            gzip.compress(bytes(json.dumps(msg), 'utf-8')))
 
     @staticmethod
     def _corr_id():
