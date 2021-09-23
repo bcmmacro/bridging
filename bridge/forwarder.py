@@ -50,13 +50,13 @@ class Forwarder(object):
         self._wss[ws_id] = ws
         return ws_id
 
-    async def forward_websocket_msg(self, ws_id: str, json: Dict):
+    async def forward_websocket_msg(self, ws_id: str, msg: str):
         await self._ws.send_json({
             "corr_id": "0",
             "method": "websocket_msg",
             "payload": {
                 "ws_id": ws_id,
-                "msg": json
+                "msg": msg
             }
         })
 
@@ -95,7 +95,7 @@ class Forwarder(object):
                         ws_id = payload["ws_id"]
                         msg = payload["msg"]
                         if ws_id in self._wss:
-                            await self._wss[ws_id].send_json(msg)
+                            await self._wss[ws_id].send_text(msg)
                 elif corr_id in self._reqs:
                     _LOGGER.info(f"recv {msg}")
                     self._reqs.pop(corr_id).set_result(payload)

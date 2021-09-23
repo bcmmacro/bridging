@@ -139,7 +139,7 @@ class App(object):
                     ws_id = payload["ws_id"]
                     msg = payload["msg"]
                     if ws_id in self._wss:
-                        await self._wss[ws_id].send(json.dumps(msg))
+                        await self._wss[ws_id].send(msg)
 
     async def _handle_http(self, corr_id, payload):
         async def _send(status_code, headers, content):
@@ -207,7 +207,6 @@ class App(object):
                     while True:
                         msg = await ws.recv()
                         _LOGGER.debug(f"recv {msg}")
-                        msg = json.loads(msg)
                         await self._send(
                             {
                                 "corr_id": "0",

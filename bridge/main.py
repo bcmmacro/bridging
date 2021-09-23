@@ -1,8 +1,5 @@
 """
 uvicorn --host 0.0.0.0 --env-file .env main:app
-
-Restriction:
-1. Websocket forwards json only.
 """
 import logging
 import os
@@ -54,7 +51,7 @@ async def serve_websocket(ws: WebSocket):
     _LOGGER.info(f"opened remote websocket {ws.client} {ws_id}")
     try:
         while True:
-            msg = await ws.receive_json()
+            msg = await ws.receive_text()
             _LOGGER.info(f"recv {ws.client} {msg}")
             await _forwarder.forward_websocket_msg(ws_id, msg)
     except Exception:
