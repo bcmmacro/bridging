@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from forwarder import Forwarder
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger('uvicorn').propagate = False
 
 _LOGGER = logging.getLogger(__name__)
 _forwarder = Forwarder()
