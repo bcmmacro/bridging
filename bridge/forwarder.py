@@ -24,11 +24,14 @@ async def serialize_request(r: Request) -> Dict:
 class Forwarder(object):
     def __init__(self):
         self._bridge_token = os.getenv("GATEWAY_BRIDGE_TOKEN")
-        self._ws: Optional[WebSocket] = None
+        self._bridge: Optional[WebSocket] = None
         self._reqs: Dict[str, asyncio.Future] = {}
         self._wss: Dict[str, WebSocket] = {}
 
     async def forward_http(self, req: Request):
+        if self._bridge is None:
+            return Response(status_code=503)
+
         payload = await serialize_request(req)
         result = await self._req('http', payload)
         resp = Response(status_code=result["status_code"],
@@ -37,6 +40,9 @@ class Forwarder(object):
         return resp
 
     async def forward_open_websocket(self, ws: WebSocket):
+        if self._bridge is None:
+            return Response(status_code=503)
+
         ws_id = self._corr_id()
         result = await self._req(
             'open_websocket', {
@@ -51,7 +57,10 @@ class Forwarder(object):
         return ws_id
 
     async def forward_websocket_msg(self, ws_id: str, msg: str):
-        await self._ws.send_json({
+        if self._bridge is None:
+            return Response(status_code=503)
+
+        await self._bridge.send_json({
             "corr_id": "0",
             "method": "websocket_msg",
             "payload": {
@@ -61,12 +70,15 @@ class Forwarder(object):
         })
 
     async def forward_close_websocket(self, ws_id: str):
+        if self._bridge is None:
+            return Response(status_code=503)
+
         if ws_id in self._wss:
             await self._req('close_websocket', {'ws_id': ws_id})
             self._wss.pop(ws_id)
 
     async def serve(self, ws: WebSocket):
-        if self._ws is not None:
+        if self._bridge is not None:
             _LOGGER.info(f"duplicate bridge ws connection client[{ws.client}]")
             return
 
@@ -75,7 +87,7 @@ class Forwarder(object):
             return
 
         await ws.accept()
-        self._ws = ws
+        self._bridge = ws
 
         try:
             while True:
@@ -93,16 +105,16 @@ class Forwarder(object):
                     elif method == 'websocket_msg':
                         _LOGGER.debug(f"recv {msg}")
                         ws_id = payload["ws_id"]
-                        msg = payload["msg"]
+                        p_msg = payload["msg"]
                         if ws_id in self._wss:
-                            await self._wss[ws_id].send_text(msg)
+                            await self._wss[ws_id].send_text(p_msg)
                 elif corr_id in self._reqs:
                     _LOGGER.info(f"recv {msg}")
                     self._reqs.pop(corr_id).set_result(payload)
 
         except Exception:
             _LOGGER.exception('')
-            self._ws = None
+            self._bridge = None
             for req in self._reqs.values():
                 req.set_exception(Exception("disconnected"))
             wss = self._wss
@@ -116,7 +128,11 @@ class Forwarder(object):
         self._reqs[corr_id] = fut
         msg = {'corr_id': corr_id, 'method': method, 'payload': payload}
         _LOGGER.info(f"send {msg}")
-        await self._ws.send_json(msg)
+        try:
+            await self._bridge.send_json(msg)
+        except Exception as e:
+            self._reqs.pop(corr_id).set_exception(e)
+
         await fut
         return fut.result()
 

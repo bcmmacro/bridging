@@ -79,7 +79,7 @@ class _WhiteList(object):
 
 class App(object):
     def __init__(self):
-        self._ws = None
+        self._bridge = None
         self._wss = {}
         self._whitelist = None
 
@@ -99,8 +99,8 @@ class App(object):
         async with websockets.connect(
                 f"ws://{bridge_netloc}/bridge",
                 extra_headers={"bridging-token": bridge_token}) as ws:
-            _LOGGER.info(f'connected to gateway')
-            self._ws = ws
+            _LOGGER.info(f'connected to bridge')
+            self._bridge = ws
             while True:
                 msg = await ws.recv()
                 _LOGGER.info(f"recv msg[{msg}]")
@@ -143,7 +143,7 @@ class App(object):
 
     async def _handle_http(self, corr_id, payload):
         async def _send(status_code, headers, content):
-            # TODO(x): better to send raw data instead of decoded in case it's huge.
+            # send decoded data is ok, since bridge msg is gzipped.
             if "Content-Encoding" in headers:
                 headers.pop("Content-Encoding")
             if "Content-Length" in headers:
@@ -235,4 +235,4 @@ class App(object):
 
     async def _send(self, msg, log_level=logging.INFO):
         _LOGGER.log(level=log_level, msg=f"send {msg}")
-        await self._ws.send(gzip.compress(bytes(json.dumps(msg), 'utf-8')))
+        await self._bridge.send(gzip.compress(bytes(json.dumps(msg), 'utf-8')))
