@@ -19,7 +19,7 @@ def _url_transformed(m):
 
 def _ws_url_transformed(m):
     result = urllib.parse.urlparse(m['url'])
-    queries = result.query.split(';')
+    queries = result.query.split('&')
     bridging_base_url = None
     for q in queries:
         k, v = q.split('=')
