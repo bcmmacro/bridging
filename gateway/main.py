@@ -1,3 +1,6 @@
+"""
+python3 ./main.py -c config.json
+"""
 import argparse
 import json
 import logging

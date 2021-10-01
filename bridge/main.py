@@ -19,10 +19,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("GATEWAY_CORS_ALLOW_ORIGINS").split(','),
+    allow_origins=os.getenv("BRIDGE_CORS_ALLOW_ORIGINS").split(','),
     allow_credentials=True,
-    allow_methods=os.getenv("GATEWAY_CORS_ALLOW_METHODS").split(','),
-    allow_headers=os.getenv("GATEWAY_CORS_ALLOW_HEADERS").split(','))
+    allow_methods=os.getenv("BRIDGE_CORS_ALLOW_METHODS").split(','),
+    allow_headers=os.getenv("BRIDGE_CORS_ALLOW_HEADERS").split(','))
 
 
 @app.get("/{full_path:path}")
