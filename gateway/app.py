@@ -97,7 +97,7 @@ class App(object):
 
     async def _run(self, bridge_netloc, bridge_token):
         async with websockets.connect(
-                f"ws://{bridge_netloc}/bridge",
+                f"{bridge_netloc}/bridge",
                 extra_headers={"bridging-token": bridge_token}) as ws:
             _LOGGER.info(f'connected to bridge')
             self._bridge = ws

@@ -1,5 +1,5 @@
 {
-  "bridge_netloc": "api.abc.com",
+  "bridge_netloc": "wss://api.abc.com",
   "bridge_token": "12345",
   "whitelist": [
     {
