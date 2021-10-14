@@ -17,13 +17,14 @@ async def serialize_request(r: Request) -> Dict:
         'url': str(r.url),
         'headers': dict(r.headers.items()),
         'client': r.client._asdict(),
-        'body': (await r.body()).decode()
+        'body': list(await r.body())
     }
 
 
 class Forwarder(object):
     def __init__(self):
         self._bridge_token = os.getenv("BRIDGE_TOKEN")
+        self._compress_level = os.getenv("BRIDGE_COMPRESS_LEVEL", 9)
         self._bridge: Optional[WebSocket] = None
         self._reqs: Dict[str, asyncio.Future] = {}
         self._wss: Dict[str, WebSocket] = {}
@@ -34,6 +35,7 @@ class Forwarder(object):
 
         args = await serialize_request(req)
         result = await self._req('http', args)
+
         resp = Response(status_code=result["status_code"],
                         headers=result["headers"],
                         content=str.encode(result["content"]))
@@ -139,7 +141,8 @@ class Forwarder(object):
     async def _send(self, msg):
         _LOGGER.info(f"send {msg}")
         await self._bridge.send_bytes(
-            gzip.compress(bytes(json.dumps(msg), 'utf-8')))
+            gzip.compress(bytes(json.dumps(msg), 'utf-8'),
+                          compresslevel=self._compress_level))
 
     @staticmethod
     def _corr_id():

@@ -33,7 +33,7 @@ def deserialize_request(m: Dict) -> requests.Request:
     return requests.Request(method=m['method'],
                             url=_url_transformed(m),
                             headers=m['headers'],
-                            data=m['body'])
+                            data=bytes(m['body']))
 
 
 def _eq(s1: str, s2: str):
@@ -98,13 +98,18 @@ class App(object):
     async def _run(self, bridge_netloc, bridge_token):
         async with websockets.connect(
                 f"{bridge_netloc}/bridge",
-                extra_headers={"bridging-token": bridge_token}) as ws:
+                extra_headers={"bridging-token": bridge_token},
+                max_size=2**30,
+                read_limit=2**30,
+                ping_interval=180,
+                ping_timeout=180) as ws:
             _LOGGER.info(f'connected to bridge')
             self._bridge = ws
             while True:
                 msg = await ws.recv()
-                msg = json.loads(gzip.decompress(msg))
-                _LOGGER.info(f"recv bridge msg[{msg}]")
+                msg = gzip.decompress(msg)
+                _LOGGER.info(f"recv bridge msg[{msg[0:1000]}]")
+                msg = json.loads(msg)
 
                 corr_id = msg["corr_id"]
                 method = msg["method"]

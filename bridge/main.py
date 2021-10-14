@@ -37,6 +37,24 @@ async def serve_post(request: Request, full_path):
     return await _forwarder.forward_http(request)
 
 
+@app.put("/{full_path:path}")
+async def serve_put(request: Request, full_path):
+    _LOGGER.info(f"recv put {request.client} {request.url}")
+    return await _forwarder.forward_http(request)
+
+
+@app.patch("/{full_path:path}")
+async def serve_patch(request: Request, full_path):
+    _LOGGER.info(f"recv patch {request.client} {request.url}")
+    return await _forwarder.forward_http(request)
+
+
+@app.delete("/{full_path:path}")
+async def serve_delete(request: Request, full_path):
+    _LOGGER.info(f"recv delete {request.client} {request.url}")
+    return await _forwarder.forward_http(request)
+
+
 @app.websocket("/bridge")
 async def serve_bridge(ws: WebSocket):
     _LOGGER.info(f"recv bridge")
