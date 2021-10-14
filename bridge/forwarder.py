@@ -24,7 +24,7 @@ async def serialize_request(r: Request) -> Dict:
 class Forwarder(object):
     def __init__(self):
         self._bridge_token = os.getenv("BRIDGE_TOKEN")
-        self._compress_level = os.getenv("BRIDGE_COMPRESS_LEVEL", 9)
+        self._compress_level = int(os.getenv("BRIDGE_COMPRESS_LEVEL", 9))
         self._bridge: Optional[WebSocket] = None
         self._reqs: Dict[str, asyncio.Future] = {}
         self._wss: Dict[str, WebSocket] = {}
