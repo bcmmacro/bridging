@@ -33,6 +33,9 @@ class Forwarder(object):
         if self._bridge is None:
             return Response(status_code=503)
 
+        if req.headers.get("bridging-base-url", None) is None:
+            return Response(status_code=400)
+
         args = await serialize_request(req)
         result = await self._req('http', args)
 
@@ -44,6 +47,9 @@ class Forwarder(object):
     async def forward_open_websocket(self, ws: WebSocket):
         if self._bridge is None:
             return Response(status_code=503)
+
+        if ws.headers.get("bridging-base-url", None) is None:
+            return Response(status_code=400)
 
         ws_id = self._corr_id()
         result = await self._req(
