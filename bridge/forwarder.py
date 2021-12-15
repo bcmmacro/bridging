@@ -46,10 +46,10 @@ class Forwarder(object):
 
     async def forward_open_websocket(self, ws: WebSocket):
         if self._bridge is None:
-            return Response(status_code=503)
+            raise Exception('invalid')
 
-        if ws.headers.get("bridging-base-url", None) is None:
-            return Response(status_code=400)
+        if "bridging-base-url" not in ws.url.query:
+            raise Exception('invalid')
 
         ws_id = self._corr_id()
         result = await self._req(
