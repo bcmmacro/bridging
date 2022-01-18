@@ -36,7 +36,7 @@ def deserialize_request(m: Dict) -> requests.Request:
     return requests.Request(method=m['method'],
                             url=_url_transformed(m),
                             headers=m['headers'],
-                            data=m['body'].encode() if 'body' in m else None)
+                            data=bytes(m['body']) if 'body' in m else None)
 
 
 def _eq(s1: str, s2: str):

@@ -16,7 +16,7 @@ async def serialize_request(r: Request) -> Dict:
         'method': r.method,
         'url': str(r.url),
         'headers': dict(r.headers.items()),
-        'client': r.client._asdict(),
+        'client': f"{r.client.host}:{r.client.port}",
         'body': list(await r.body())
     }
 
