@@ -13,8 +13,11 @@ _LOGGER = logging.getLogger(__name__)
 
 def _url_transformed(m):
     result = urllib.parse.urlparse(m['url'])
-    return urllib.parse.urlunparse(
-        result._replace(netloc=m['headers']['bridging-base-url']))
+    for k, v in m['headers'].items():
+        if k.lower() == 'bridging-base-url':
+            bridging_base_url = v
+    result = urllib.parse.urlunparse(result._replace(netloc=bridging_base_url))
+    return result
 
 
 def _ws_url_transformed(m):
@@ -23,7 +26,7 @@ def _ws_url_transformed(m):
     bridging_base_url = None
     for q in queries:
         k, v = q.split('=')
-        if k == 'bridging-base-url':
+        if k.lower() == 'bridging-base-url':
             bridging_base_url = v
             break
     return urllib.parse.urlunparse(result._replace(netloc=bridging_base_url))
@@ -33,7 +36,7 @@ def deserialize_request(m: Dict) -> requests.Request:
     return requests.Request(method=m['method'],
                             url=_url_transformed(m),
                             headers=m['headers'],
-                            data=bytes(m['body']))
+                            data=m['body'].encode() if 'body' in m else None)
 
 
 def _eq(s1: str, s2: str):
@@ -68,11 +71,12 @@ class _WhiteList(object):
                     for scheme in entry["scheme"]:
                         for path in entry["path"]:
                             self._entries.add(
-                                _WhiteListEntry(method, scheme, netloc, path))
+                                _WhiteListEntry(method.upper(), scheme, netloc,
+                                                path))
 
     def check(self, method, url):
         parsed = urllib.parse.urlparse(url)
-        if _WhiteListEntry(method, parsed.scheme, parsed.netloc,
+        if _WhiteListEntry(method.upper(), parsed.scheme, parsed.netloc,
                            parsed.path) not in self._entries:
             raise Exception("forbidden")
 
@@ -167,6 +171,7 @@ class App(object):
         try:
             req = deserialize_request(args)
         except Exception:
+            _LOGGER.exception('')
             await _send(400, {}, "")
             return
 
