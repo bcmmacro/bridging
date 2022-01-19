@@ -5,6 +5,7 @@ import logging
 import requests
 import time
 import urllib.parse
+import uuid
 import websockets
 from typing import Dict, NamedTuple
 
@@ -220,7 +221,7 @@ class App(object):
                         _LOGGER.debug(f"recv ws_id[{ws_id}] {msg}")
                         await self._send(
                             {
-                                "corr_id": "0",
+                                "corr_id": uuid.uuid4().hex,
                                 "method": "websocket_msg",
                                 "args": {
                                     "ws_id": ws_id,
@@ -230,7 +231,7 @@ class App(object):
                 except Exception:
                     _LOGGER.exception('')
                     await self._send({
-                        "corr_id": "0",
+                        "corr_id": uuid.uuid4().hex,
                         "method": "close_websocket",
                         "args": {
                             "ws_id": ws_id

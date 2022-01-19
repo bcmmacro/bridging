@@ -69,7 +69,7 @@ class Forwarder(object):
             return Response(status_code=503)
 
         await self._send({
-            "corr_id": "0",
+            "corr_id": uuid.uuid4().hex,
             "method": "websocket_msg",
             "args": {
                 "ws_id": ws_id,
@@ -104,19 +104,18 @@ class Forwarder(object):
                 msg = json.loads(gzip.decompress(msg))
                 corr_id = msg['corr_id']
                 args = msg['args']
-                if corr_id == '0':
-                    method = msg['method']
-                    if method == 'close_websocket':
-                        _LOGGER.info(f"recv {msg}")
-                        ws_id = args['ws_id']
-                        if ws_id in self._wss:
-                            await self._wss.pop(ws_id).close()
-                    elif method == 'websocket_msg':
-                        _LOGGER.debug(f"recv {msg}")
-                        ws_id = args["ws_id"]
-                        p_msg = args["msg"]
-                        if ws_id in self._wss:
-                            await self._wss[ws_id].send_text(p_msg)
+                method = msg['method']
+                if method == 'close_websocket':
+                    _LOGGER.info(f"recv {msg}")
+                    ws_id = args['ws_id']
+                    if ws_id in self._wss:
+                        await self._wss.pop(ws_id).close()
+                elif method == 'websocket_msg':
+                    _LOGGER.debug(f"recv {msg}")
+                    ws_id = args["ws_id"]
+                    p_msg = args["msg"]
+                    if ws_id in self._wss:
+                        await self._wss[ws_id].send_text(p_msg)
                 elif corr_id in self._reqs:
                     _LOGGER.info(f"recv {msg}")
                     self._reqs.pop(corr_id).set_result(args)
