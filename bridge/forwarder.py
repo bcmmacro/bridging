@@ -57,7 +57,7 @@ class Forwarder(object):
                 'ws_id': ws_id,
                 'url': str(ws.url),
                 'headers': dict(ws.headers.items()),
-                'client': ws.client._asdict()
+                'client': f"{ws.client.host}:{ws.client.port}"
             })
         if "exception" in result:
             raise Exception(result["exception"])
