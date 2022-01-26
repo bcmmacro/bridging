@@ -1,9 +1,11 @@
 # bridging
 We have two datacenters, one is private and another is cloud. Mainly for security/privary concerns, we are not allowed to have inbound connections to our private DC. Also we should not transfer sensitive data to cloud. So we come up with this solution: cloud serves the website frontend (nodejs like), a bridge forwards requests from frontend / replies from private DC.
 
+refer to [bridging-go](https://github.com/bcmmacro/bridging-go) for the golang implementation.
+
 ## Use cases
 1. You are going to serve a public website, but critical business services are running on-premise, and you are not allowed to have inbound connections to on-premise infrastructure.
-2. You are hosting a website and you want to use your own PC to save cloud bill.
+2. You are hosting a website, and you want to use your own PC to save cloud bill.
 
 ## How it works
 Bridge is the one running on cloud, Gateway running on private DC.
@@ -45,7 +47,7 @@ A config file sample can be found at [sample.json](gateway/sample.json).
 3. Minimal requirement/effort on maintaining the cloud DC.
 
 ## Limitations
-1. It bridges HTTP and websocket only, which is its nature and by design. HTTP methods other than GET and POST are not implemented though.
+1. It bridges HTTP and websocket only, which is its nature and by design.
 2. Messages over `/bridge` are gzipped, but duplicate traffic (into cloud) could become the bottleneck of this setup.
 
 ## For dev
