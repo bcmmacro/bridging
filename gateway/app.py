@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import gzip
 import json
 import logging
@@ -153,7 +154,7 @@ class App(object):
                         await self._wss[ws_id].send(msg)
 
     async def _handle_http(self, corr_id, args):
-        async def _send(status_code, headers, content):
+        async def _send(status_code, headers, body):
             # send decoded data is ok, since bridge msg is gzipped.
             if "Content-Encoding" in headers:
                 headers.pop("Content-Encoding")
@@ -165,7 +166,7 @@ class App(object):
                 "args": {
                     "status_code": status_code,
                     "headers": [(k, v) for k, v in headers.items()],
-                    "content": content
+                    "body": body
                 }
             })
 
@@ -187,7 +188,7 @@ class App(object):
             _LOGGER.info(f"recv http resp[{resp}]")
 
             await _send(resp.status_code, dict(resp.headers),
-                        resp.content.decode())
+                        base64.b64encode(resp.content).decode())
         except Exception as e:
             _LOGGER.exception('')
             await _send(500, {}, str(e))

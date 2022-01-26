@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import gzip
 import json
 import logging
@@ -41,7 +42,7 @@ class Forwarder(object):
 
         resp = Response(status_code=result["status_code"],
                         headers=dict(result["headers"]),
-                        content=str.encode(result["content"]))
+                        content=base64.b64decode(result["body"]))
         return resp
 
     async def forward_open_websocket(self, ws: WebSocket):
