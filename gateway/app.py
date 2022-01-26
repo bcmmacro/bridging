@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _url_transformed(m):
     result = urllib.parse.urlparse(m['url'])
-    for k, v in m['headers'].items():
+    for k, v in m['headers']:
         if k.lower() == 'bridging-base-url':
             bridging_base_url = v
     result = urllib.parse.urlunparse(result._replace(netloc=bridging_base_url))
@@ -36,7 +36,7 @@ def _ws_url_transformed(m):
 def deserialize_request(m: Dict) -> requests.Request:
     return requests.Request(method=m['method'],
                             url=_url_transformed(m),
-                            headers=m['headers'],
+                            headers=dict(m['headers']),
                             data=bytes(m['body']) if 'body' in m else None)
 
 
@@ -164,7 +164,7 @@ class App(object):
                 "method": "http_result",
                 "args": {
                     "status_code": status_code,
-                    "headers": headers,
+                    "headers": [(k, v) for k, v in headers.items()],
                     "content": content
                 }
             })

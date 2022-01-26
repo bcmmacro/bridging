@@ -15,7 +15,7 @@ async def serialize_request(r: Request) -> Dict:
     return {
         'method': r.method,
         'url': str(r.url),
-        'headers': dict(r.headers.items()),
+        'headers': r.headers.items(),
         'client': f"{r.client.host}:{r.client.port}",
         'body': list(await r.body())
     }
@@ -40,7 +40,7 @@ class Forwarder(object):
         result = await self._req('http', args)
 
         resp = Response(status_code=result["status_code"],
-                        headers=result["headers"],
+                        headers=dict(result["headers"]),
                         content=str.encode(result["content"]))
         return resp
 
@@ -56,7 +56,7 @@ class Forwarder(object):
             'open_websocket', {
                 'ws_id': ws_id,
                 'url': str(ws.url),
-                'headers': dict(ws.headers.items()),
+                'headers': ws.headers.items(),
                 'client': f"{ws.client.host}:{ws.client.port}"
             })
         if "exception" in result:
@@ -82,9 +82,8 @@ class Forwarder(object):
             return Response(status_code=503)
 
         if ws_id in self._wss:
+            self._wss.pop(ws_id)
             await self._req('close_websocket', {'ws_id': ws_id})
-            if ws_id in self._wss:
-                self._wss.pop(ws_id)
 
     async def serve(self, ws: WebSocket):
         if self._bridge is not None:
